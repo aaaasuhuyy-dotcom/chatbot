@@ -1,0 +1,14 @@
+transformers==4.35.2
+psutil
+python-multipart
+accelerate
+sentence-transformers==2.2.2
+matplotlib
+seaborn
+jupyter
+ipython
+
+# fine tune pip
+datasets 
+accelerate 
+evaluate

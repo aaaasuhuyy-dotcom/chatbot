@@ -1,0 +1,11 @@
+# lstm requirements for the project
+tensorflow
+pandas
+scikit-learn
+nltk
+fastapi
+uvicorn
+python-telegram-bot==20.7
+requests
+pydantic
+torch

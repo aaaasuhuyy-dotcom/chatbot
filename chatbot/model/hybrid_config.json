@@ -1,0 +1,18 @@
+{
+  "model_type": "lstm",
+  "vocab_size": 593,
+  "max_sequence_length": 10,
+  "embedding_dim": 64,
+  "lstm_units": 32,
+  "num_classes": 39,
+  "training_info": {
+    "epochs_trained": 50,
+    "final_train_accuracy": 0.9820199608802795,
+    "final_val_accuracy": 0.9629213213920593,
+    "final_train_loss": 0.06255220621824265,
+    "final_val_loss": 0.08503998070955276
+  },
+  "bert_model": "indobenchmark/indobert-lite-base-p1",
+  "training_strategy": "LSTM + IndoBERT Hybrid",
+  "timestamp": "2025-10-08 07:39:27"
+}

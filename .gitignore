@@ -1,0 +1,39 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Model files (too large for GitHub)
+*.pth
+*.h5
+*.pkl
+model.safetensors
+bert_simple_finetuned/
+bert_model/
+
+# Logs
+logs/
+*.log
+
+# Cache
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (optional - remove if you want to include them)
+# *.csv
+
+# Temporary files
+*.tmp
+*.temp
