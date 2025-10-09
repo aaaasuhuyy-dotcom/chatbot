@@ -74,6 +74,47 @@ python test_bert_model.py
 python test.py
 ```
 
+### Run the API (development)
+```bash
+# from repository root
+cd chatbot
+source .venv/bin/activate
+uvicorn chatbot.app:app --reload
+```
+
+### Environment variables
+You can override default model paths with environment variables before starting the app:
+
+- DATASET_PATH (default: `dataset/dataset_training.csv`)
+- LSTM_MODEL_PATH (default: `model/chatbot_model.h5`)
+- LSTM_TOKENIZER_PATH (default: `model/tokenizer.pkl`)
+- LSTM_LABEL_ENCODER_PATH (default: `model/label_encoder.pkl`)
+- BERT_MODEL_PATH (default: `bert_simple_finetuned`)
+
+Example:
+```bash
+export BERT_MODEL_PATH=bert_simple_finetuned
+export LSTM_MODEL_PATH=model/chatbot_model.h5
+uvicorn chatbot.app:app --reload
+```
+
+### Debug endpoints
+Two helpful debug endpoints were added to inspect predictions and response scoring:
+
+- `/api/debug-prediction?text=...` — returns LSTM and BERT raw predictions and the fused hybrid result.
+- `/api/debug-response-scores?text=...&intent=...&method=...` — returns candidate patterns/responses along with computed similarity and score (useful to tune `pattern_similarity_threshold`).
+
+Example curl commands:
+```bash
+# Debug fused prediction
+curl -G "http://127.0.0.1:8000/api/debug-prediction" --data-urlencode "text=halo"
+
+# Show candidate response scores for an intent
+curl -G "http://127.0.0.1:8000/api/debug-response-scores" --data-urlencode "text=halo" --data-urlencode "intent=salutation"
+```
+
+If the server is running remotely or behind a proxy, adjust the host/port accordingly.
+
 ### Fix Malformed CSV
 ```bash
 python scripts/fix_csv_malformed.py

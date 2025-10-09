@@ -65,34 +65,49 @@ async def startup_event():
         print("🚀 Starting Hybrid Chatbot API...")
         
         # Import inside function to avoid circular imports
-        from hybrid_nlu_service import HybridNLUService, initialize_hybrid_service
-        
-        nlu_service = HybridNLUService()
-        
+        from hybrid_nlu_service import initialize_hybrid_service
+
+        # Use environment vars for pre-checks (same defaults used for initialization)
+        dataset_path = os.environ.get('DATASET_PATH', 'dataset/dataset_training.csv')
+        lstm_model_path = os.environ.get('LSTM_MODEL_PATH', 'model/chatbot_model.h5')
+        lstm_tokenizer_path = os.environ.get('LSTM_TOKENIZER_PATH', 'model/tokenizer.pkl')
+        lstm_label_encoder_path = os.environ.get('LSTM_LABEL_ENCODER_PATH', 'model/label_encoder.pkl')
+        bert_model_path = os.environ.get('BERT_MODEL_PATH', 'bert_simple_finetuned')
+
         print("📂 Checking model files...")
         # Check if model files exist
         model_files = {
-            "lstm_model": "model/chatbot_model.h5",
-            "tokenizer": "model/tokenizer.pkl", 
-            "label_encoder": "model/label_encoder.pkl",
-            "dataset": "dataset/dataset_training.csv"
+            "lstm_model": lstm_model_path,
+            "tokenizer": lstm_tokenizer_path,
+            "label_encoder": lstm_label_encoder_path,
+            "dataset": dataset_path,
+            "bert_folder": bert_model_path
         }
-        
+
         for file_type, file_path in model_files.items():
             if os.path.exists(file_path):
                 print(f"✅ {file_type}: {file_path} - EXISTS")
             else:
                 print(f"❌ {file_type}: {file_path} - NOT FOUND")
         
-        # Initialize with model paths
+        # Initialize with model paths (read from environment variables when provided)
         print("🔄 Initializing hybrid service...")
-        initialize_hybrid_service(
-            dataset_path="dataset/dataset_training.csv",
-            lstm_model_path="model/chatbot_model.h5",
-            lstm_tokenizer_path="model/tokenizer.pkl",
-            lstm_label_encoder_path="model/label_encoder.pkl"
+
+        dataset_path = os.environ.get('DATASET_PATH', 'dataset/dataset_training.csv')
+        lstm_model_path = os.environ.get('LSTM_MODEL_PATH', 'model/chatbot_model.h5')
+        lstm_tokenizer_path = os.environ.get('LSTM_TOKENIZER_PATH', 'model/tokenizer.pkl')
+        lstm_label_encoder_path = os.environ.get('LSTM_LABEL_ENCODER_PATH', 'model/label_encoder.pkl')
+        bert_model_path = os.environ.get('BERT_MODEL_PATH', 'bert_simple_finetuned')
+
+        # Initialize and assign the fully-initialized service
+        nlu_service = initialize_hybrid_service(
+            dataset_path=dataset_path,
+            lstm_model_path=lstm_model_path,
+            lstm_tokenizer_path=lstm_tokenizer_path,
+            lstm_label_encoder_path=lstm_label_encoder_path,
+            bert_model_path=bert_model_path
         )
-        
+
         print("✅ Hybrid service initialized!")
         print(f"📊 LSTM Model: {nlu_service.lstm_model is not None}")
         print(f"📊 BERT Model: {nlu_service.bert_classifier is not None}") 
@@ -161,10 +176,12 @@ async def chat(user_input: UserInput):
         # Get hybrid prediction
         prediction = nlu_service.predict_intent_hybrid(user_input.text)
         
-        # Get response
+        # Get response using method and pattern similarity from hybrid prediction
         response_text = nlu_service.get_best_response(
-            prediction["intent"], 
-            user_input.text
+            prediction["intent"],
+            user_input.text,
+            method_used=prediction.get("method", "hybrid"),
+            pattern_similarity=prediction.get("pattern_similarity", 0.0)
         )
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000  # ms
@@ -194,7 +211,19 @@ async def chat_lstm_only(user_input: UserInput):
     try:
         # Use LSTM only
         prediction = nlu_service.predict_with_lstm(user_input.text)
-        response_text = nlu_service.get_best_response(prediction["intent"], user_input.text)
+        # For LSTM-only, compute pattern similarity to use in response selection
+        pattern_similarity = 0.0
+        try:
+            pattern_similarity = nlu_service.check_pattern_similarity(user_input.text, prediction["intent"])
+        except Exception:
+            pattern_similarity = 0.0
+
+        response_text = nlu_service.get_best_response(
+            prediction["intent"],
+            user_input.text,
+            method_used="lstm_only",
+            pattern_similarity=pattern_similarity
+        )
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
@@ -226,7 +255,19 @@ async def chat_bert_only(user_input: UserInput):
     try:
         # Use BERT only
         prediction = nlu_service.predict_with_bert(user_input.text)
-        response_text = nlu_service.get_best_response(prediction["intent"], user_input.text)
+        # For BERT-only, compute pattern similarity to use in response selection
+        pattern_similarity = 0.0
+        try:
+            pattern_similarity = nlu_service.check_pattern_similarity(user_input.text, prediction["intent"])
+        except Exception:
+            pattern_similarity = 0.0
+
+        response_text = nlu_service.get_best_response(
+            prediction["intent"],
+            user_input.text,
+            method_used="bert_only",
+            pattern_similarity=pattern_similarity
+        )
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
@@ -256,7 +297,12 @@ async def batch_chat(batch_input: BatchInput):
         results = []
         for text in batch_input.texts:
             prediction = nlu_service.predict_intent_hybrid(text)
-            response = nlu_service.get_best_response(prediction["intent"], text)
+            response = nlu_service.get_best_response(
+                prediction["intent"],
+                text,
+                method_used=prediction.get("method", "hybrid"),
+                pattern_similarity=prediction.get("pattern_similarity", 0.0)
+            )
             
             results.append({
                 "text": text,
@@ -332,12 +378,39 @@ async def debug_prediction(text: str):
             "lstm_prediction": lstm_pred,
             "bert_prediction": bert_pred,
             "fused_prediction": fused_pred,
-            "final_response": nlu_service.get_best_response(fused_pred["intent"], text),
+            "final_response": nlu_service.get_best_response(
+                fused_pred["intent"],
+                text,
+                method_used=fused_pred.get("method", "hybrid"),
+                pattern_similarity=fused_pred.get("pattern_similarity", 0.0)
+            ),
             "confidence_thresholds": nlu_service.confidence_thresholds
         }
         
     except Exception as e:
         logger.error(f"Debug prediction error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/debug-response-scores")
+async def debug_response_scores(text: str, intent: str, method: str = "hybrid"):
+    """Return candidate responses and their computed similarity/scores for an intent."""
+    if nlu_service is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    try:
+        # Determine pattern_similarity from method if possible
+        pattern_similarity = 0.0
+        try:
+            pattern_similarity = nlu_service.check_pattern_similarity(text, intent)
+        except Exception:
+            pattern_similarity = 0.0
+
+        scores = nlu_service.get_response_scores(intent, text, method_used=method, pattern_similarity=pattern_similarity)
+        return {"intent": intent, "text": text, "method": method, "pattern_similarity": pattern_similarity, "candidates": scores}
+
+    except Exception as e:
+        logger.error(f"Debug response scores error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # Error handlers
